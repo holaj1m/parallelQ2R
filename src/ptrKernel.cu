@@ -1,22 +1,21 @@
 #include </usr/local/cuda/include/cuda_runtime.h>
+#include </usr/local/cuda/include/curand.h>
+#include </usr/local/cuda/include/curand_kernel.h>
 #include "../include/ptrKernel.h"
 #include <cstdlib>
 #include <iostream>
 
 
-//DEFINE drand48 TO OBTAIN A RANDOM NUMBER
-#define drand48() ((float)rand()/(float)RAND_MAX)
-
-
-__global__ void configureInitialConditions(size_t size, int *statesPtr, int *neighborsPtr, int *evolutionPtr, double densityStatesAB, double densityStatesAC){
+__global__ void configureInitialConditions(size_t size, int *statesPtr, int *neighborsPtr, int *evolutionPtr, double densityStatesAB, double densityStatesAC, float *randomNumbers){
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
     while (tid < size) {
+        float randVal1{randomNumbers[tid]}, randVal2{randomNumbers[tid + size]};
         // Create a variable that will determines if the state is or not zero
-        int selectZero{1- int(drand48() + densityStatesAB)};
+        int selectZero{1- int(randVal1 + densityStatesAB)};
 
         // Initialize states randomly considering states density
         if(selectZero == 0){statesPtr[tid] = 0;}
-        else{statesPtr[tid] = 1 - 2 * int(drand48() + densityStatesAC);}
+        else{statesPtr[tid] = 1 - 2 * int(randVal2 + densityStatesAC);}
 
         // As initial condition we impose that neighbors are equal to states for the first step
         neighborsPtr[tid] = statesPtr[tid];

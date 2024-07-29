@@ -5,7 +5,7 @@
 #include </usr/local/cuda/include/cuda_runtime.h>
 #include <cstdlib>
 
-__global__ void configureInitialConditions(size_t size, int *statesPtr, int *neighborsPtr, int *evolutionPtr, double densityStatesAB, double densityStatesAC);
+__global__ void configureInitialConditions(size_t size, int *statesPtr, int *neighborsPtr, int *evolutionPtr, double densityStatesAB, double densityStatesAC, float *randomNumbers);
 
 void displayPtr(size_t ptrSize, int *ptr);
 
