@@ -13,7 +13,7 @@
 int main(){
 
     // Size of the system
-    size_t dimension{1024};
+    size_t dimension{10};
 
     // Pointers on host to allocate states of the system
     int *currentStates{nullptr}, *neighbors{nullptr}, *nextStates{nullptr};
@@ -35,10 +35,7 @@ int main(){
     HANDLE_ERROR(cudaMalloc((void**)&d_neighbors, dimension * sizeof(int)));
     HANDLE_ERROR(cudaMalloc((void**)&d_nextStates, dimension * sizeof(int)));
 
-    //==================== R A N D O M  N U M B E R S ===========================
-    // Allocate memory on the CPU to see the numbers generated
-    float *randNumbers{nullptr};
-    randNumbers = new float[2*dimension];
+    //-------------------- R A N D O M  N U M B E R S ------------------------------
     // Allocate memory on the GPU to generate initial condition
     float *d_randNumbers{nullptr};
     // Consider dimension random numbers
@@ -51,46 +48,65 @@ int main(){
     CURAND_CALL(curandSetPseudoRandomGeneratorSeed(gen,1234ULL));
     // Generate dimension random numbers
     CURAND_CALL(curandGenerateUniform(gen, d_randNumbers, 2 * dimension));
+    // Destroy the generator
+    CURAND_CALL(curandDestroyGenerator(gen));
+    //------------------------------------------------------------------------------
 
     // Density between states A and B, and between A and C.
     double densityStatesAB{0.3};
     double densityStatesAC{0.3};
 
     // Call the kernel to configure initial conditions
-    configureInitialConditions<<<32,32>>>(dimension, d_currentStates, d_neighbors, d_nextStates, densityStatesAB, densityStatesAC, d_randNumbers);
+    configureInitialConditions<<<1,10>>>(dimension, d_currentStates, d_neighbors, d_nextStates, densityStatesAB, densityStatesAC, d_randNumbers);
+
+    
+
+    // ---------------------- E V O L V E  T H E  S Y S T E M --------------------------
+    //----------------------------------------------------------------------------------
+    size_t time{10};
+    for(size_t t{}; t < time; t++){
+        // Apply the rule
+        Q2RPottsRule<<<1,10>>>(dimension, d_currentStates, d_neighbors, d_nextStates);
+
+        // Ensure kernel is complete before memcpy
+        HANDLE_ERROR(cudaDeviceSynchronize()); 
+
+        // VERIFICATION
+        // Copy the results to the CPU
+        HANDLE_ERROR(cudaMemcpy(currentStates, d_currentStates, dimension * sizeof(int), cudaMemcpyDeviceToHost));
+        HANDLE_ERROR(cudaMemcpy(neighbors, d_neighbors, dimension * sizeof(int), cudaMemcpyDeviceToHost));
+        HANDLE_ERROR(cudaMemcpy(nextStates, d_nextStates, dimension * sizeof(int), cudaMemcpyDeviceToHost));
+
+        std::cout << "======================================================" << std::endl;
+        std::cout << "============== T I M E  "<< t <<"  ===================" << std::endl;
+        std::cout << "The elements stored on current states are: " << std::endl;
+        displayPtr(dimension,currentStates);
+        std::cout << "The elements stored on neighbors are: " << std::endl;
+        displayPtr(dimension,neighbors);
+        std::cout << "The elements stored on next states are: " << std::endl;
+        displayPtr(dimension,nextStates); 
+
+        // Transfer values from neighbors to current states
+        HANDLE_ERROR(cudaMemcpy(d_currentStates, d_neighbors, dimension * sizeof(int), cudaMemcpyDeviceToDevice));
+
+        // Transfer the values from next states to neighbors
+        HANDLE_ERROR(cudaMemcpy(d_neighbors, d_nextStates, dimension * sizeof(int), cudaMemcpyDeviceToDevice));
+    }
+
 
     // Copy the results to the CPU
     HANDLE_ERROR(cudaMemcpy(currentStates, d_currentStates, dimension * sizeof(int), cudaMemcpyDeviceToHost));
     HANDLE_ERROR(cudaMemcpy(neighbors, d_neighbors, dimension * sizeof(int), cudaMemcpyDeviceToHost));
     HANDLE_ERROR(cudaMemcpy(nextStates, d_nextStates, dimension * sizeof(int), cudaMemcpyDeviceToHost));
-
-    HANDLE_ERROR(cudaMemcpy(randNumbers, d_randNumbers, 2 * dimension * sizeof(int), cudaMemcpyDeviceToHost));
     //============================================================================
     //============================== H O S T =====================================
     // Verify elements on pointers
-    std::cout << "The elements stored on current states are: " << std::endl;
-    displayPtr(100,currentStates);
+    /*std::cout << "The elements stored on current states are: " << std::endl;
+    displayPtr(50,currentStates);
     std::cout << "The elements stored on neighbors are: " << std::endl;
-    displayPtr(10,neighbors);
+    displayPtr(50,neighbors);
     std::cout << "The elements stored on next states are: " << std::endl;
-    displayPtr(10,nextStates);
-
-    std::cout << "RAND VAL 1: \n";
-    std::cout << "[" << randNumbers[0] << ", ";
-    for(size_t i{}; i < 100 - 1; i++){
-        std::cout << randNumbers[i] << ", ";
-    }
-    std::cout << randNumbers[100-1] << "]" << std::endl;
-
-    std::cout << "RAND VAL 2: \n";
-    std::cout << "[" << randNumbers[dimension] << ", ";
-    for(size_t i{dimension}; i < dimension + 100 - 1; i++){
-        std::cout << randNumbers[i] << ", ";
-    }
-    std::cout << randNumbers[dimension + 100 -1] << "]" << std::endl;
-
-
-
+    displayPtr(50,nextStates);*/
 
     //============================================================================
     //============================ D E V I C E ===================================
@@ -100,16 +116,13 @@ int main(){
     HANDLE_ERROR(cudaFree(d_nextStates));
 
     HANDLE_ERROR(cudaFree(d_randNumbers));
-    // Destroy the generator
-    CURAND_CALL(curandDestroyGenerator(gen));
+    
     //============================================================================
 
     // Clean the allocated memory on GPU
     delete[] currentStates; currentStates = nullptr;
     delete[] neighbors; neighbors = nullptr;
     delete[] nextStates; nextStates = nullptr;
-
-    delete[] randNumbers; randNumbers = nullptr;
 
     return 0;
 }

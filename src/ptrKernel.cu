@@ -31,7 +31,7 @@ __global__ void configureInitialConditions(size_t size, int *statesPtr, int *nei
 // Display pointer
 void displayPtr(size_t ptrSize, int *ptr){
     std::cout << "[" << ptr[0] << ", ";
-    for(size_t i{}; i < ptrSize - 1; i++){
+    for(size_t i{1}; i < ptrSize - 1; i++){
         std::cout << ptr[i] << ", ";
     }
     std::cout << ptr[ptrSize-1] << "]" << std::endl;

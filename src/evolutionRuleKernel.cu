@@ -28,7 +28,7 @@ __global__ void Q2RPottsRule(size_t size, int *statesPtr, int *neighborsPtr, int
         int freqStateA{}, freqStateB{}, freqStateC{};
 
         //Count the frequency
-        for(size_t element; element < 4; element++){
+        for(size_t element{}; element < 4; element++){
             switch (neighborhood[element])
             {
             case -1: freqStateA++; break;
