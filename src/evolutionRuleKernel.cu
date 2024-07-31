@@ -1,5 +1,6 @@
 #include </usr/local/cuda/include/cuda_runtime.h>
 #include <cstdlib>
+#include <vector>
 
 
 #include "../include/evolutionRuleKernel.h"
@@ -106,3 +107,65 @@ __global__ void Q2RPottsRule(size_t size, int *statesPtr, int *neighborsPtr, int
         tid += blockDim.x * gridDim.x;
     }
 }
+
+
+
+__global__ void computeEnergy(size_t size, int *statesPtr, int *neighborsPtr, int *partialEnergy){
+    
+    extern __shared__ int cache[];
+    int tid = threadIdx.x + blockIdx.x * blockDim.x;
+    int cacheIdx = threadIdx.x;
+
+    // Create variable to store the contribution of the state to the total energy
+    int localEnergy{};
+
+    while(tid < size){
+        // Mod operation to obtain neighbors
+        size_t firstNeighborRightIdx  =   (tid + 1) % size;
+        size_t secondNeighborRightIdx =   (tid + 2) % size;
+
+        size_t firstNeighborLeftIdx   =   (tid + size - 1) % size;
+        size_t secondNeighborLeftIdx  =   (tid + size - 2) % size;
+
+        // Initialize the current state and its neighbors
+        int currentState{statesPtr[tid]};
+        int firstNeighborRight{neighborsPtr[firstNeighborRightIdx]};
+        int secondNeighborRight{neighborsPtr[secondNeighborRightIdx]};
+        int firstNeighborLeft{neighborsPtr[firstNeighborLeftIdx]};
+        int secondNeighborLeft{neighborsPtr[secondNeighborLeftIdx]};
+
+        // Create an array to store the neighborhood
+        int neighborhood[4] = {firstNeighborRight, secondNeighborRight, firstNeighborLeft, secondNeighborLeft};
+
+        
+        //Count the repeated elements among the neighborhood
+        for(size_t element{}; element < 4; element++){
+            if(currentState == neighborhood[element]){
+                localEnergy += 1;
+            }
+        }
+
+        // Check for elements out of range
+        tid += blockDim.x * gridDim.x;
+    }
+
+    // set the cache values
+    cache[cacheIdx] = localEnergy;
+    
+    // synchronize threads in this block
+    __syncthreads();
+
+    // for reductions, threadsPerBlock must be a power of 2
+    // because of the following code
+    int i = blockDim.x/2;
+    while (i != 0) {
+        if (cacheIdx < i)
+            cache[cacheIdx] += cache[cacheIdx + i];
+        __syncthreads();
+        i /= 2;
+    }
+
+    if (cacheIdx == 0){partialEnergy[blockIdx.x] = cache[0];}
+        
+}
+

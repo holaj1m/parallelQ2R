@@ -9,16 +9,20 @@
 #include "../include/ptrKernel.h"
 #include "../include/evolutionRuleKernel.h"
 
+// Function that computes the minimum value of two input
+#define imin(a,b) (a<b?a:b)
 
 int main(){
 
     // Size of the system
-    size_t dimension{10};
+    size_t dimension{8};
 
     // Pointers on host to allocate states of the system
     int *currentStates{nullptr}, *neighbors{nullptr}, *nextStates{nullptr};
     
-    // Pointers on host to al
+    // Define blocks and threads
+    const size_t threadsPerBlock = 32;
+    const size_t blocksPerGrid = imin( 32, (dimension+threadsPerBlock-1) / threadsPerBlock );
 
     // Allocate memory on the CPU
     currentStates   = new int[dimension];
@@ -57,28 +61,47 @@ int main(){
     double densityStatesAC{0.3};
 
     // Call the kernel to configure initial conditions
-    configureInitialConditions<<<1,10>>>(dimension, d_currentStates, d_neighbors, d_nextStates, densityStatesAB, densityStatesAC, d_randNumbers);
-
-    
+    configureInitialConditions<<<blocksPerGrid,threadsPerBlock>>>(dimension, d_currentStates, d_neighbors, d_nextStates, densityStatesAB, densityStatesAC, d_randNumbers);
 
     // ---------------------- E V O L V E  T H E  S Y S T E M --------------------------
     //----------------------------------------------------------------------------------
+
+    // Variables to compute the energy
+    int *partialEnergy{nullptr};
+
+    partialEnergy = new int[blocksPerGrid];
+
+    int *d_partialEnergy{nullptr};
+
+    HANDLE_ERROR(cudaMalloc((void**)&d_partialEnergy, blocksPerGrid * sizeof(int)));
+
     size_t time{10};
     for(size_t t{}; t < time; t++){
         // Apply the rule
-        Q2RPottsRule<<<1,10>>>(dimension, d_currentStates, d_neighbors, d_nextStates);
+        Q2RPottsRule<<<blocksPerGrid,threadsPerBlock>>>(dimension, d_currentStates, d_neighbors, d_nextStates);
 
         // Ensure kernel is complete before memcpy
         HANDLE_ERROR(cudaDeviceSynchronize()); 
+
+        computeEnergy<<<blocksPerGrid,threadsPerBlock, threadsPerBlock * sizeof(int)>>>(dimension, d_currentStates, d_neighbors, d_partialEnergy);
+
+        HANDLE_ERROR(cudaMemcpy(partialEnergy, d_partialEnergy, blocksPerGrid * sizeof(int), cudaMemcpyDeviceToHost));
 
         // VERIFICATION
         // Copy the results to the CPU
         HANDLE_ERROR(cudaMemcpy(currentStates, d_currentStates, dimension * sizeof(int), cudaMemcpyDeviceToHost));
         HANDLE_ERROR(cudaMemcpy(neighbors, d_neighbors, dimension * sizeof(int), cudaMemcpyDeviceToHost));
         HANDLE_ERROR(cudaMemcpy(nextStates, d_nextStates, dimension * sizeof(int), cudaMemcpyDeviceToHost));
+        
+        
 
         std::cout << "======================================================" << std::endl;
         std::cout << "============== T I M E  "<< t <<"  ===================" << std::endl;
+        int energy{};
+        for(size_t i{}; i < blocksPerGrid; i++){
+            energy += partialEnergy[i];
+        }
+        std::cout << "ENERGY: " << energy << std::endl;
         std::cout << "The elements stored on current states are: " << std::endl;
         displayPtr(dimension,currentStates);
         std::cout << "The elements stored on neighbors are: " << std::endl;

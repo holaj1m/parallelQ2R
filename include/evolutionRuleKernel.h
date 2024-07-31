@@ -7,4 +7,6 @@
 
 __global__ void Q2RPottsRule(size_t size, int *statesPtr, int *neighborsPtr, int *evolutionPtr);
 
+__global__ void computeEnergy(size_t size, int *statesPtr, int *neighborsPtr, int *partialEnergy);
+
 #endif
