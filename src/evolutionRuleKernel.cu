@@ -5,22 +5,17 @@
 
 #include "../include/evolutionRuleKernel.h"
 
-__global__ void Q2RPottsRule(size_t size, int *statesPtr, int *neighborsPtr, int *evolutionPtr){
+__global__ void Q2RPottsRule(size_t size, int *statesPtr, int *neighborsPtr, int *ptrFirstNeighborRightIdx, int *ptrSecondNeighborRightIdx, int *ptrFirstNeighborLeftIdx, int *ptrSecondNeighborLeftIdx, int *evolutionPtr){
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
     while (tid < size) {
-        // Mod operation to obtain neighbors
-        size_t firstNeighborRightIdx  =   (tid + 1) % size;
-        size_t secondNeighborRightIdx =   (tid + 2) % size;
-
-        size_t firstNeighborLeftIdx   =   (tid + size - 1) % size;
-        size_t secondNeighborLeftIdx  =   (tid + size - 2) % size;
 
         // Initialize the current state and its neighbors
         int currentState{statesPtr[tid]};
-        int firstNeighborRight{neighborsPtr[firstNeighborRightIdx]};
-        int secondNeighborRight{neighborsPtr[secondNeighborRightIdx]};
-        int firstNeighborLeft{neighborsPtr[firstNeighborLeftIdx]};
-        int secondNeighborLeft{neighborsPtr[secondNeighborLeftIdx]};
+
+        int firstNeighborRight  = neighborsPtr[ptrFirstNeighborRightIdx[tid]];
+        int secondNeighborRight = neighborsPtr[ptrSecondNeighborRightIdx[tid]];
+        int firstNeighborLeft   = neighborsPtr[ptrFirstNeighborLeftIdx[tid]];
+        int secondNeighborLeft  = neighborsPtr[ptrSecondNeighborLeftIdx[tid]];
 
         // Create an array to store the neighborhood
         int neighborhood[4] = {firstNeighborRight, secondNeighborRight, firstNeighborLeft, secondNeighborLeft};
@@ -110,7 +105,7 @@ __global__ void Q2RPottsRule(size_t size, int *statesPtr, int *neighborsPtr, int
 
 
 
-__global__ void computeEnergy(size_t size, int *statesPtr, int *neighborsPtr, int *partialEnergy){
+__global__ void computeEnergy(size_t size, int *statesPtr, int *neighborsPtr, int *ptrFirstNeighborRightIdx, int *ptrSecondNeighborRightIdx, int *ptrFirstNeighborLeftIdx, int *ptrSecondNeighborLeftIdx, int *partialEnergy){
     
     extern __shared__ int cache[];
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -120,19 +115,14 @@ __global__ void computeEnergy(size_t size, int *statesPtr, int *neighborsPtr, in
     int localEnergy{};
 
     while(tid < size){
-        // Mod operation to obtain neighbors
-        size_t firstNeighborRightIdx  =   (tid + 1) % size;
-        size_t secondNeighborRightIdx =   (tid + 2) % size;
-
-        size_t firstNeighborLeftIdx   =   (tid + size - 1) % size;
-        size_t secondNeighborLeftIdx  =   (tid + size - 2) % size;
 
         // Initialize the current state and its neighbors
         int currentState{statesPtr[tid]};
-        int firstNeighborRight{neighborsPtr[firstNeighborRightIdx]};
-        int secondNeighborRight{neighborsPtr[secondNeighborRightIdx]};
-        int firstNeighborLeft{neighborsPtr[firstNeighborLeftIdx]};
-        int secondNeighborLeft{neighborsPtr[secondNeighborLeftIdx]};
+
+        int firstNeighborRight  = neighborsPtr[ptrFirstNeighborRightIdx[tid]];
+        int secondNeighborRight = neighborsPtr[ptrSecondNeighborRightIdx[tid]];
+        int firstNeighborLeft   = neighborsPtr[ptrFirstNeighborLeftIdx[tid]];
+        int secondNeighborLeft  = neighborsPtr[ptrSecondNeighborLeftIdx[tid]];
 
         // Create an array to store the neighborhood
         int neighborhood[4] = {firstNeighborRight, secondNeighborRight, firstNeighborLeft, secondNeighborLeft};
